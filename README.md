@@ -70,8 +70,8 @@ From Kaggle:
 
 Place these files inside the data/ folder:
 
-`data/movies_metadata.csv`
-`data/credits.csv`
+`data/backend/movies_metadata.csv`
+`data/backend/credits.csv`
 
 ### 4. Install and Run Ollama
 
