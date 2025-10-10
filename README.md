@@ -37,13 +37,11 @@ This project demonstrates how to combine **Large Language Models (LLMs)** with *
 
 ## Tech Stack
 
-| Component | Technology |
-|------------|-------------|
-| Backend | Python, Flask |
-| LLM Embeddings | Ollama (`nomic-embed-text`) |
-| Vector Search | FAISS |
-| Data | TMDB Movie Metadata (Kaggle) |
-| Frontend : HTML, CSS, Jinja Templates |
+ Backend: Python, Flask 
+ LLM Embeddings: Ollama (`nomic-embed-text`) 
+ Vector Search: FAISS 
+ Data: TMDB Movie Metadata (Kaggle) 
+ Frontend: HTML, CSS, Jinja Templates 
 
 ---
 
