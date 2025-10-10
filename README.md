@@ -2,7 +2,7 @@
 
 A modern **content-based movie recommender system** built with **Python**, **Ollama LLM embeddings**, **FAISS vector search**, and a clean **Flask web interface**.
 
-This project demonstrates how to combine **Large Language Models (LLMs)** with **vector databases** to build smart, semantic movie recommendations — similar to Netflix or IMDb’s “More Like This” feature.
+This project demonstrates how to combine **Large Language Models (LLMs)** with **vector databases** to build smart, semantic movie recommendations, complete with **posters**, **overviews**, and **IMDb/TMDB links** — similar to Netflix or IMDb’s “More Like This” feature.
 
 ---
 
