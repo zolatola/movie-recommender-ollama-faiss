@@ -53,4 +53,4 @@ faiss.write_index(index, "models/movie_index.faiss")
 with open("models/movie_metadata.pkl", "wb") as f:
     pickle.dump(df, f)
 
-print("✅ FAISS index and metadata saved.")
+print("FAISS index and metadata saved.")
