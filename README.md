@@ -102,3 +102,16 @@ Open your browser and visit:
 `http://127.0.0.1:5000`
 
 Type a movie title (e.g. Inception) or a description (“space exploration and survival”) and hit Find Recommendations.
+
+---
+
+# Inspiration
+
+Inspired by NeuralNine’s YouTube tutorial
+and extended with:
+
+- Ollama for local embeddings (LLMs)
+
+- FAISS vector storage
+
+- Flask + TMDB integration for a full-stack web app
