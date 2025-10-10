@@ -54,7 +54,7 @@ This project demonstrates how to combine **Large Language Models (LLMs)** with *
 
 ### 1. Clone the Repository
 
-`git clone https://github.com/YOUR_USERNAME/movie-recommender-ollama-faiss.git
+`git clone https://github.com/zolatola/movie-recommender-ollama-faiss.git
 cd movie-recommender-ollama-faiss`
 
 ### 2. Install Dependencies
