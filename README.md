@@ -1,13 +1,13 @@
-# 🎬 CineMatch — Local AI Movie Recommender
+# CineMatch — Local AI Movie Recommender
 
-Content-based movie recommendation system that runs entirely on your machine.
+Content-based movie recommendation system that runs entirely on your local machine.
 It uses [Ollama](https://ollama.com) to generate semantic embeddings of each
 movie's genres + overview, ranks the catalog by cosine similarity, and can
 ask a local LLM to explain *why* a given movie was recommended.
 
 No cloud APIs, no accounts, no data leaves your computer. If Ollama isn't
 running, the app automatically falls back to TF-IDF similarity so it still
-works — you just lose the semantic understanding and the "why this?" feature.
+works; you just lose the semantic understanding and the "why this?" feature.
 
 ## How it works
 
