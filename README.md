@@ -1,117 +1,102 @@
-# Movie Recommendation System (Content-Based · FAISS · Ollama · Flask)
+# 🎬 CineMatch — Local AI Movie Recommender
 
-A modern **content-based movie recommender system** built with **Python**, **Ollama LLM embeddings**, **FAISS vector search**, and a clean **Flask web interface**.
+Content-based movie recommendation system that runs entirely on your machine.
+It uses [Ollama](https://ollama.com) to generate semantic embeddings of each
+movie's genres + overview, ranks the catalog by cosine similarity, and can
+ask a local LLM to explain *why* a given movie was recommended.
 
-This project demonstrates how to combine **Large Language Models (LLMs)** with **vector databases** to build smart, semantic movie recommendations, complete with **posters**, **overviews**, and **IMDb/TMDB links** — similar to Netflix or IMDb’s “More Like This” feature.
+No cloud APIs, no accounts, no data leaves your computer. If Ollama isn't
+running, the app automatically falls back to TF-IDF similarity so it still
+works — you just lose the semantic understanding and the "why this?" feature.
 
----
+## How it works
 
-## Features
+- **Data**: the bundled `top10K-TMDB-movies.csv` (10,000 popular movies with
+  title, genre, overview, rating, etc.). You can swap in your own CSV with
+  the same columns from the sidebar.
+- **Content-based filtering**: each movie's title + genres + overview is
+  turned into a vector using an Ollama embedding model
+  (`nomic-embed-text` by default). Recommendations are the nearest
+  neighbors by cosine similarity — no user history or ratings-matrix needed.
+- **Two ways to search**:
+  1. *Similar to a movie* — pick a movie you like, get similar ones.
+  2. *Describe what you want* — type a free-text vibe/plot description,
+     it's embedded the same way and matched against the catalog.
+- **LLM explanations**: click "Why this recommendation?" on any result and
+  a local chat model (`llama3.2` by default) writes a short, specific
+  reason it fits.
+- Embeddings are cached to disk (`cache/`) keyed by dataset + model, so the
+  slow part (embedding thousands of movies) only happens once.
 
-- Uses **content-based filtering** (recommends movies similar in plot, cast, and genre)  
-- Runs fully **offline** using local embeddings via **Ollama**  
-- Uses **FAISS** for high-speed semantic similarity search  
-- Interactive **Flask web app** for easy use  
-- Built with **TMDB Movie Metadata** from [Kaggle](https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata)
+## Setup
 
----
+### 1. Install Ollama
 
-## How It Works
+Download from [ollama.com](https://ollama.com) and install it (macOS,
+Windows, or Linux). Then pull the two models this app uses:
 
-1. **Data Preparation**
-   - Loads and cleans movie data from TMDB’s `movies_metadata.csv` and `credits.csv`.
+```bash
+ollama pull nomic-embed-text
+ollama pull llama3.2
+```
 
-2. **Embedding Generation**
-   - Each movie’s plot and cast are converted into vector embeddings using **Ollama**’s `nomic-embed-text` model.
+Make sure the server is running (it usually auto-starts; otherwise run
+`ollama serve` in a terminal).
 
-3. **Vector Indexing**
-   - Embeddings are stored in a **FAISS** vector index for fast similarity search.
+### 2. Install Python dependencies
 
-4. **Recommendation**
-   - When a user searches for a movie or description, the system embeds that input and retrieves the closest matches.
+```bash
+pip install -r requirements.txt
+```
 
-5. **Frontend**
-   - Flask renders the results on a clean, responsive web interface.
+(Python 3.10+ recommended.)
 
----
+### 3. (Optional) Pre-build embeddings from the command line
 
-## Tech Stack
+The app can build embeddings for you on first run inside the UI, but for
+the full 10K-movie catalog you may prefer to kick this off ahead of time:
 
- Backend: Python, Flask  
- 
- LLM Embeddings: Ollama (`nomic-embed-text`)  
- 
- Vector Search: FAISS  
- 
- Data: TMDB Movie Metadata (Kaggle)  
- 
- Frontend: HTML, CSS, Jinja Templates  
- 
+```bash
+python build_embeddings.py --max-movies 3000
+```
 
----
+Drop `--max-movies` to embed the whole catalog (10,000 movies — can take a
+while depending on your hardware; each is a small API call to your local
+Ollama server). Progress is checkpointed every 50 movies, so it's safe to
+interrupt and resume.
 
-##  Setup Guide
+### 4. Run the app
 
-### 1. Clone the Repository
+```bash
+streamlit run app.py
+```
 
-`git clone https://github.com/zolatola/movie-recommender-ollama-faiss.git
-cd movie-recommender-ollama-faiss`
+It opens at `http://localhost:8501`. In the sidebar you can:
 
-### 2. Install Dependencies
+- Point at a different Ollama host/port
+- Change the embedding/chat model names
+- Change how many of the top-popularity movies to load (smaller = faster
+  first build)
+- Upload your own CSV (needs `title`, `genre`, `overview` columns at minimum)
 
-Make sure Python 3.9+ is installed, then run:
+## Project layout
 
-`pip install -r requirements.txt`
+```
+app.py                 Streamlit UI
+data.py                CSV loading/cleaning
+ollama_client.py        Thin HTTP client for Ollama's /api/embeddings and /api/chat
+embeddings_store.py     Disk-cached, resumable embedding computation
+recommender.py          Cosine-similarity recommendation engine + LLM explanations
+build_embeddings.py     CLI to pre-build the embedding cache
+requirements.txt
+top10K-TMDB-movies.csv  Bundled dataset
+```
 
-### 3. Download the TMDB Dataset
+## Troubleshooting
 
-From Kaggle:
-`TMDB Movie Metadata Dataset`
-
-Place these files inside the data/ folder:
-
-`data/backend/movies_metadata.csv`
-`data/backend/credits.csv`
-
-### 4. Install and Run Ollama
-
-Download Ollama from `https://ollama.com/download`
-
-Start the Ollama server from the terminal:
-
-`ollama serve`
-
-
-Pull the embedding model:
-
-`ollama pull nomic-embed-text`
-
-
-Verify it’s working:
-
-`curl http://localhost:11434/api/tags`
-
-### 5. Prepare Embeddings and FAISS Index
-`python prepare_data.py`
-
-### 6. Run the Flask Web App
-`python app.py`
-
-
-Open your browser and visit:
-`http://127.0.0.1:5000`
-
-Type a movie title (e.g. Inception) or a description (“space exploration and survival”) and hit Find Recommendations.
-
----
-
-# Inspiration
-
-Inspired by NeuralNine’s YouTube tutorial
-and extended with:
-
-- Ollama for local embeddings (LLMs)
-
-- FAISS vector storage
-
-- Flask + TMDB integration for a full-stack web app
+- **"Ollama not reachable"** — make sure `ollama serve` is running and the
+  host in the sidebar matches (default `http://localhost:11434`).
+- **Embedding build is slow** — lower "Catalog size" in the sidebar, or use
+  a smaller/faster embedding model.
+- **Model not found errors** — double check you ran `ollama pull <model>`
+  for whatever name you typed in the sidebar; it must match exactly.
