@@ -1,4 +1,4 @@
-# CineMatch — Local AI Movie Recommender
+# CineMatch - Local AI Movie Recommender
 
 Content-based movie recommendation system that runs entirely on your local machine.
 It uses [Ollama](https://ollama.com) to generate semantic embeddings of each
