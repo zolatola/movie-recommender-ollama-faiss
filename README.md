@@ -1,26 +1,20 @@
-# CineMatch - Local AI Movie Recommender
-
-Content-based movie recommendation system that runs entirely on your local machine.
-It uses [Ollama](https://ollama.com) to generate semantic embeddings of each
+# Loca Movie recommendation system using AI
+Content-based movie recommendation system that runs entirely on the local machine.
+Uses [Ollama](https://ollama.com) to generate semantic embeddings of each
 movie's genres + overview, ranks the catalog by cosine similarity, and can
 ask a local LLM to explain *why* a given movie was recommended.
-
-No cloud APIs, no accounts, no data leaves your computer. If Ollama isn't
-running, the app automatically falls back to TF-IDF similarity so it still
-works; you just lose the semantic understanding and the "why this?" feature.
 
 ## How it works
 
 - **Data**: the bundled `top10K-TMDB-movies.csv` (10,000 popular movies with
-  title, genre, overview, rating, etc.). You can swap in your own CSV with
-  the same columns from the sidebar.
+  title, genre, overview, rating, etc.). Other movie CSV files are optional.
 - **Content-based filtering**: each movie's title + genres + overview is
   turned into a vector using an Ollama embedding model
   (`nomic-embed-text` by default). Recommendations are the nearest
   neighbors by cosine similarity — no user history or ratings-matrix needed.
 - **Two ways to search**:
-  1. *Similar to a movie* — pick a movie you like, get similar ones.
-  2. *Describe what you want* — type a free-text vibe/plot description,
+  1. *Similar to a movie* - pick a movie you like, get similar ones.
+  2. *Describe what you want* - type a free-text plot description,
      it's embedded the same way and matched against the catalog.
 - **LLM explanations**: click "Why this recommendation?" on any result and
   a local chat model (`llama3.2` by default) writes a short, specific
@@ -60,9 +54,9 @@ the full 10K-movie catalog you may prefer to kick this off ahead of time:
 python build_embeddings.py --max-movies 3000
 ```
 
-Drop `--max-movies` to embed the whole catalog (10,000 movies — can take a
-while depending on your hardware; each is a small API call to your local
-Ollama server). Progress is checkpointed every 50 movies, so it's safe to
+Drop `--max-movies` to embed the whole catalog (10,000 movies - can take a
+while depending on the hardware; each is a small API call to your local
+Ollama server). Progress checkpointed every 50 movies, so it's safe to
 interrupt and resume.
 
 ### 4. Run the app
@@ -77,7 +71,7 @@ It opens at `http://localhost:8501`. In the sidebar you can:
 - Change the embedding/chat model names
 - Change how many of the top-popularity movies to load (smaller = faster
   first build)
-- Upload your own CSV (needs `title`, `genre`, `overview` columns at minimum)
+- Upload own CSV (needs `title`, `genre`, `overview` columns at minimum)
 
 ## Project layout
 
