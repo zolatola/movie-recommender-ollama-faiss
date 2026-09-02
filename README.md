@@ -1,4 +1,4 @@
-# Loca Movie recommendation system using AI
+# Local Movie recommendation system using LLMs and Faiss
 Content-based movie recommendation system that runs entirely on the local machine.
 Uses [Ollama](https://ollama.com) to generate semantic embeddings of each
 movie's genres + overview, ranks the catalog by cosine similarity, and can
