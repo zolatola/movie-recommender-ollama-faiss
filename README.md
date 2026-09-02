@@ -7,7 +7,7 @@ ask a local LLM to explain *why* a given movie was recommended.
 ## How it works
 
 - **Data**: the bundled `top10K-TMDB-movies.csv` (10,000 popular movies with
-  title, genre, overview, rating, etc.). Other movie CSV files are optional.
+  title, genre, overview, rating, etc.).
 - **Content-based filtering**: each movie's title + genres + overview is
   turned into a vector using an Ollama embedding model
   (`nomic-embed-text` by default). Recommendations are the nearest
