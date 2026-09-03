@@ -12,7 +12,7 @@ APP_DIR = os.path.dirname(__file__)
 DEFAULT_CSV = os.path.join(APP_DIR, "top10K-TMDB-movies.csv")
 
 st.set_page_config(
-    page_title="CineMatch - AI Movie Recommender",
+    page_title="BZMovies - AI Movie Recommender",
     page_icon="🎬",
     layout="wide",
 )
