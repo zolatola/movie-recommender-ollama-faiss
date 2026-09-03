@@ -6,12 +6,13 @@ from data import load_and_clean, embedding_text
 from recommender import ContentRecommender
 from ollama_client import is_running, list_models, OllamaError
 from embeddings_store import get_or_build_embeddings, load_cached
+from tmdb_client import fetch_media_batch, _load_disk_cache
 
 APP_DIR = os.path.dirname(__file__)
 DEFAULT_CSV = os.path.join(APP_DIR, "top10K-TMDB-movies.csv")
 
 st.set_page_config(
-    page_title="CineMatch — AI Movie Recommender",
+    page_title="CineMatch - AI Movie Recommender",
     page_icon="🎬",
     layout="wide",
 )
@@ -55,6 +56,18 @@ h1, h2, h3 { font-family: 'Georgia', serif; }
     padding: 8px 12px; border-radius: 6px; margin-top: 8px;
     font-size: 0.88rem; color: #d8dcec; font-style: italic;
 }
+.poster-img { border-radius: 10px; width: 100%; object-fit: cover; }
+.poster-placeholder {
+    background: #20233240; border: 1px dashed #3a3f57; border-radius: 10px;
+    width: 100%; aspect-ratio: 2/3; display: flex; align-items: center;
+    justify-content: center; font-size: 2rem; color: #4a4f68;
+}
+.trailer-link {
+    display: inline-block; margin-top: 8px; padding: 5px 14px;
+    background: #e8213c; color: #fff !important; border-radius: 999px;
+    font-size: 0.8rem; font-weight: 600; text-decoration: none !important;
+}
+.trailer-link:hover { background: #ff2d4a; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -67,9 +80,14 @@ defaults = {
     "recommender": None,
     "csv_path": DEFAULT_CSV,
     "explanations": {},
+    "tmdb_api_key": "",
+    "media_cache": None,
 }
 for k, v in defaults.items():
     st.session_state.setdefault(k, v)
+
+if st.session_state.media_cache is None:
+    st.session_state.media_cache = _load_disk_cache()
 
 # ---------------------------------------------------------------- sidebar --
 with st.sidebar:
@@ -114,6 +132,15 @@ with st.sidebar:
         min_value=500, max_value=10000, value=st.session_state.catalog_size, step=500,
         help="Smaller = faster first-time embedding build. You can re-run with a bigger catalog anytime.",
     )
+
+    st.markdown("---")
+    st.markdown("### 🖼️ Posters & trailers")
+    st.session_state.tmdb_api_key = st.text_input(
+        "TMDB API key (optional)", st.session_state.tmdb_api_key, type="password",
+        help="Free key from themoviedb.org — enables poster images and trailer links "
+             "on recommendations. Leave blank to skip these.",
+    )
+    st.caption("Get a free key at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)")
 
     st.markdown("---")
     build_clicked = st.button("🔨 Build / load embeddings", use_container_width=True, type="primary")
@@ -177,11 +204,11 @@ rec: ContentRecommender = st.session_state.recommender
 if rec is None:
     st.stop()
 
-mode_html = (
-    '<span class="mode-badge mode-ollama">● Semantic mode — Ollama embeddings</span>'
-    if rec.mode == "ollama"
-    else '<span class="mode-badge mode-tfidf">● Fallback mode — TF-IDF (start Ollama for better results)</span>'
-)
+if rec.mode == "ollama":
+    search_engine = "FAISS" if rec.using_faiss else "numpy (install faiss-cpu for faster search)"
+    mode_html = f'<span class="mode-badge mode-ollama">● Semantic mode — Ollama embeddings · {search_engine}</span>'
+else:
+    mode_html = '<span class="mode-badge mode-tfidf">● Fallback mode — TF-IDF (start Ollama for better results)</span>'
 st.markdown(mode_html, unsafe_allow_html=True)
 st.caption(f"Catalog loaded: {len(rec.df):,} movies")
 st.write("")
@@ -195,22 +222,47 @@ def render_results(results: pd.DataFrame, anchor_description: str, key_prefix: s
         st.info("No matches found — try loosening the genre filter.")
         return
 
+    if st.session_state.tmdb_api_key:
+        with st.spinner("Fetching posters & trailers…"):
+            media_map = fetch_media_batch(
+                results["id"].tolist(), st.session_state.tmdb_api_key, st.session_state.media_cache
+            )
+    else:
+        media_map = {tid: {"poster_url": None, "trailer_url": None} for tid in results["id"]}
+
     cols = st.columns(2)
     for i, (_, row) in enumerate(results.iterrows()):
         with cols[i % 2]:
             genres_html = "".join(f'<span class="genre-tag">{g}</span>' for g in row["genre_list"])
             sim_pct = max(0.0, min(1.0, float(row["similarity"]))) * 100
             year = row["release_year"] if pd.notna(row["release_year"]) else "—"
+            media = media_map.get(row["id"], {"poster_url": None, "trailer_url": None})
 
-            st.markdown(f"""
-            <div class="movie-card">
-                <span class="rating-badge">★ {row['vote_average']:.1f}</span>
-                <div class="movie-title">{row['title']}</div>
-                <div class="movie-meta">{year} · {row['vote_count']:,} votes · popularity {row['popularity']:.0f}</div>
-                <div>{genres_html}</div>
-                <div class="sim-bar-bg"><div class="sim-bar-fg" style="width:{sim_pct:.0f}%"></div></div>
-            </div>
-            """, unsafe_allow_html=True)
+            poster_col, info_col = st.columns([1, 2])
+            with poster_col:
+                if media["poster_url"]:
+                    st.markdown(
+                        f'<img class="poster-img" src="{media["poster_url"]}" />',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown('<div class="poster-placeholder">🎬</div>', unsafe_allow_html=True)
+                if media["trailer_url"]:
+                    st.markdown(
+                        f'<a class="trailer-link" href="{media["trailer_url"]}" target="_blank">▶ Trailer</a>',
+                        unsafe_allow_html=True,
+                    )
+
+            with info_col:
+                st.markdown(f"""
+                <div class="movie-card">
+                    <span class="rating-badge">★ {row['vote_average']:.1f}</span>
+                    <div class="movie-title">{row['title']}</div>
+                    <div class="movie-meta">{year} · {row['vote_count']:,} votes · popularity {row['popularity']:.0f}</div>
+                    <div>{genres_html}</div>
+                    <div class="sim-bar-bg"><div class="sim-bar-fg" style="width:{sim_pct:.0f}%"></div></div>
+                </div>
+                """, unsafe_allow_html=True)
 
             with st.expander("Overview"):
                 st.write(row["overview"])
@@ -228,6 +280,7 @@ def render_results(results: pd.DataFrame, anchor_description: str, key_prefix: s
                     f'<div class="explain-box">{st.session_state.explanations[explain_key]}</div>',
                     unsafe_allow_html=True,
                 )
+            st.write("")
 
 
 # ------------------------------------------------------------------ tabs --
