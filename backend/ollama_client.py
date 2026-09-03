@@ -29,12 +29,35 @@ def list_models(host: str, timeout: float = 3.0) -> list[str]:
         raise OllamaError(f"Could not reach Ollama at {host}: {e}")
 
 
-def get_embedding(text: str, model: str, host: str, timeout: float = 30.0) -> list[float]:
-    """Get a single embedding vector from Ollama's /api/embeddings endpoint."""
+def _apply_task_prefix(text: str, model: str, kind: str) -> str:
+    """Some embedding models were trained with a required task prefix and
+    give noticeably worse (near-random) similarity scores without it.
+    `kind` is "document" for catalog items being indexed, "query" for a
+    user's free-text search. Movie-to-movie similarity treats both sides
+    as documents, since neither is a "query" in the retrieval sense.
+    """
+    m = model.lower()
+    if "nomic-embed" in m:
+        prefix = "search_document: " if kind == "document" else "search_query: "
+        return prefix + text
+    if "mxbai-embed" in m and kind == "query":
+        return "Represent this sentence for searching relevant passages: " + text
+    return text
+
+
+def get_embedding(
+    text: str, model: str, host: str, timeout: float = 30.0, kind: str = "document"
+) -> list[float]:
+    """Get a single embedding vector from Ollama's /api/embeddings endpoint.
+
+    kind: "document" (default) for catalog items, "query" for a user's
+    free-text search -- see _apply_task_prefix.
+    """
+    prompt = _apply_task_prefix(text, model, kind)
     try:
         r = requests.post(
             f"{host}/api/embeddings",
-            json={"model": model, "prompt": text},
+            json={"model": model, "prompt": prompt},
             timeout=timeout,
         )
         r.raise_for_status()

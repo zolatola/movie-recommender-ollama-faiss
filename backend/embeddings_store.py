@@ -18,7 +18,7 @@ import pandas as pd
 from ollama_client import get_embedding, OllamaError
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
-TEXT_BUILDER_VERSION = "v1"
+TEXT_BUILDER_VERSION = "v2"  # bumped: embeddings now include model-specific task prefixes
 
 
 def _cache_key(csv_path: str, n_rows: int, model: str) -> str:
@@ -78,7 +78,7 @@ def build_embeddings(
     dim = None
     for i in range(start_idx, n_rows):
         text = text_fn(df.iloc[i])
-        vec = get_embedding(text, model=model, host=host)
+        vec = get_embedding(text, model=model, host=host, kind="document")
         arr = np.array(vec, dtype=np.float32)
         if dim is None:
             dim = arr.shape[0]

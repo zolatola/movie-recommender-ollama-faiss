@@ -19,6 +19,12 @@ from sklearn.metrics.pairwise import cosine_similarity
 from data import embedding_text
 from ollama_client import get_embedding, chat, OllamaError
 
+try:
+    import faiss
+    FAISS_AVAILABLE = True
+except ImportError:
+    FAISS_AVAILABLE = False
+
 
 class ContentRecommender:
     def __init__(self, df: pd.DataFrame):
@@ -27,6 +33,8 @@ class ContentRecommender:
         self._tfidf_matrix = None
         self._tfidf = None
         self.mode = "none"  # "ollama" | "tfidf"
+        self.faiss_index = None
+        self.using_faiss = False
 
     # ---------- setup ----------
 
@@ -35,8 +43,18 @@ class ContentRecommender:
         # L2-normalize once so cosine similarity is just a dot product.
         norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
-        self.embeddings = embeddings / norms
+        self.embeddings = (embeddings / norms).astype(np.float32)
         self.mode = "ollama"
+
+        if FAISS_AVAILABLE:
+            # Inner product on L2-normalized vectors == cosine similarity.
+            index = faiss.IndexFlatIP(self.embeddings.shape[1])
+            index.add(np.ascontiguousarray(self.embeddings))
+            self.faiss_index = index
+            self.using_faiss = True
+        else:
+            self.faiss_index = None
+            self.using_faiss = False
 
     def build_tfidf_fallback(self):
         texts = self.df.apply(embedding_text, axis=1)
@@ -62,6 +80,10 @@ class ContentRecommender:
         self, row_id: int, top_n: int = 10, genre_filter: list[str] | None = None
     ) -> pd.DataFrame:
         idx = self.df.index[self.df["row_id"] == row_id][0]
+        if self.mode == "ollama":
+            return self._rank_dense(
+                self.embeddings[idx], exclude_idx={idx}, top_n=top_n, genre_filter=genre_filter
+            )
         sims = self._sims_from_vector(idx)
         return self._rank(sims, exclude_idx={idx}, top_n=top_n, genre_filter=genre_filter)
 
@@ -74,17 +96,62 @@ class ContentRecommender:
         host: str = "",
     ) -> pd.DataFrame:
         if self.mode == "ollama":
-            vec = np.array(get_embedding(query_text, model=embed_model, host=host), dtype=np.float32)
+            vec = np.array(
+                get_embedding(query_text, model=embed_model, host=host, kind="query"),
+                dtype=np.float32,
+            )
             vec = vec / (np.linalg.norm(vec) or 1.0)
-            sims = self.embeddings @ vec
-        else:
-            q_vec = self._tfidf.transform([query_text])
-            sims = cosine_similarity(q_vec, self._tfidf_matrix).ravel()
+            return self._rank_dense(vec, exclude_idx=set(), top_n=top_n, genre_filter=genre_filter)
+        q_vec = self._tfidf.transform([query_text])
+        sims = cosine_similarity(q_vec, self._tfidf_matrix).ravel()
         return self._rank(sims, exclude_idx=set(), top_n=top_n, genre_filter=genre_filter)
 
+    # -- dense (Ollama embedding) search: FAISS when available, numpy otherwise --
+
+    def _dense_search(self, query_vec: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
+        """Return (indices, cosine similarities) of the k nearest neighbors to
+        query_vec among self.embeddings, using FAISS if it's installed."""
+        n = len(self.df)
+        k = min(k, n)
+        query_vec = np.ascontiguousarray(query_vec.reshape(1, -1), dtype=np.float32)
+
+        if self.using_faiss and self.faiss_index is not None:
+            sims, idxs = self.faiss_index.search(query_vec, k)
+            return idxs[0], sims[0]
+
+        sims_all = self.embeddings @ query_vec.ravel()
+        top_idx = np.argpartition(-sims_all, k - 1)[:k]
+        top_idx = top_idx[np.argsort(-sims_all[top_idx])]
+        return top_idx, sims_all[top_idx]
+
+    def _rank_dense(
+        self, query_vec: np.ndarray, exclude_idx: set, top_n: int, genre_filter
+    ) -> pd.DataFrame:
+        n = len(self.df)
+        # With a genre filter we can't know in advance how many of the nearest
+        # neighbors will survive filtering, so pull the full ranking to
+        # guarantee correctness. Without a filter, a small buffer over top_n
+        # (covering exclusions) is enough -- this is the fast path.
+        k = n if genre_filter else min(n, top_n + len(exclude_idx) + 5)
+        idxs, sims = self._dense_search(query_vec, k)
+
+        results = []
+        for idx, sim in zip(idxs, sims):
+            if idx < 0 or idx in exclude_idx:
+                continue
+            row = self.df.iloc[idx]
+            if genre_filter and not set(row["genre_list"]) & set(genre_filter):
+                continue
+            results.append((idx, sim))
+            if len(results) >= top_n:
+                break
+
+        out = self.df.iloc[[i for i, _ in results]].copy()
+        out["similarity"] = [s for _, s in results]
+        return out
+
     def _sims_from_vector(self, idx: int) -> np.ndarray:
-        if self.mode == "ollama":
-            return self.embeddings @ self.embeddings[idx]
+        # TF-IDF fallback path only -- the ollama path uses _dense_search/_rank_dense.
         return cosine_similarity(self._tfidf_matrix[idx], self._tfidf_matrix).ravel()
 
     def _rank(self, sims: np.ndarray, exclude_idx: set, top_n: int, genre_filter):
